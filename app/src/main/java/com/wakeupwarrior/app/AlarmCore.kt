@@ -190,6 +190,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
             .setDefaults(androidx.core.app.NotificationCompat.DEFAULT_VIBRATE)
             .setFullScreenIntent(pending, true)
+            .setContentIntent(pending)
             .setOngoing(true)
             .setAutoCancel(false)
             .build()
