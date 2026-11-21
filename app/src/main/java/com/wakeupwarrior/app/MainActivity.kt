@@ -32,6 +32,9 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material3.*
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,33 +68,43 @@ fun WakeUpWarriorApp() {
     var alarms by remember { mutableStateOf(AlarmStore.all(context)) }
     var editing by remember { mutableStateOf<AlarmItem?>(null) }
     var showSetup by remember { mutableStateOf(false) }
-    var showPermissionSetup by remember { mutableStateOf(!context.getSharedPreferences("first_run", 0).getBoolean("permission_setup_seen", false)) }
-
-    val runtimePermissions = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val alarmManager = context.getSystemService(AlarmManager::class.java)
-            if (!alarmManager.canScheduleExactAlarms()) {
-                runCatching { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:" + context.packageName))) }
-            }
+    var permissionRefresh by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) permissionRefresh++
         }
-        if (Build.VERSION.SDK_INT >= 34) {
-            val nm = context.getSystemService(NotificationManager::class.java)
-            if (!nm.canUseFullScreenIntent()) {
-                runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).setData(Uri.parse("package:" + context.packageName))) }
-            }
-        }
-        context.getSharedPreferences("first_run", 0).edit().putBoolean("permission_setup_seen", true).apply()
-        showPermissionSetup = false
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    val notificationsGranted = Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    val exactAlarmGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    val fullScreenGranted = Build.VERSION.SDK_INT < 34 || context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+    val allPermissionsGranted = cameraGranted && notificationsGranted && exactAlarmGranted && fullScreenGranted
 
-    fun requestRequiredPermissions() {
+    val runtimePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        permissionRefresh++
+    }
+    val settingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        permissionRefresh++
+    }
+    fun requestRuntimePermissions() {
         val permissions = buildList {
-            if (Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
-            add(android.Manifest.permission.CAMERA)
+            if (Build.VERSION.SDK_INT >= 33 && !notificationsGranted) add(android.Manifest.permission.POST_NOTIFICATIONS)
+            if (!cameraGranted) add(android.Manifest.permission.CAMERA)
         }
-        runtimePermissions.launch(permissions.toTypedArray())
+        if (permissions.isNotEmpty()) runtimePermissions.launch(permissions.toTypedArray())
+    }
+    fun openExactAlarmSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            settingsLauncher.launch(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:" + context.packageName)))
+        }
+    }
+    fun openFullScreenSettings() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            settingsLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).setData(Uri.parse("package:" + context.packageName)))
+        }
     }
 
     fun refresh() { alarms = AlarmStore.all(context) }
@@ -124,22 +137,68 @@ fun WakeUpWarriorApp() {
                     }
                 )
             }
-            if (showPermissionSetup) {
-                AlertDialog(
-                    onDismissRequest = { },
-                    title = { Text("Set up WakeUp Warrior") },
-                    text = { Text("Allow notifications and camera access. We’ll also guide you to enable exact alarms and full-screen alarm display so the wake-up screen can appear on time. Camera is used for the Dance and Lucky Wheel challenges.") },
-                    confirmButton = {
-                        TextButton(onClick = { requestRequiredPermissions() }) { Text("Allow permissions") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = {
-                            context.getSharedPreferences("first_run", 0).edit().putBoolean("permission_setup_seen", true).apply()
-                            showPermissionSetup = false
-                        }) { Text("Not now") }
-                    }
+            if (!allPermissionsGranted) {
+                PermissionSetupScreen(
+                    cameraGranted = cameraGranted,
+                    notificationsGranted = notificationsGranted,
+                    exactAlarmGranted = exactAlarmGranted,
+                    fullScreenGranted = fullScreenGranted,
+                    onRequestRuntime = { requestRuntimePermissions() },
+                    onExactAlarm = { openExactAlarmSettings() },
+                    onFullScreen = { openFullScreenSettings() }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun PermissionSetupScreen(
+    cameraGranted: Boolean,
+    notificationsGranted: Boolean,
+    exactAlarmGranted: Boolean,
+    fullScreenGranted: Boolean,
+    onRequestRuntime: () -> Unit,
+    onExactAlarm: () -> Unit,
+    onFullScreen: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(Canvas).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Default.Alarm, null, tint = Mint, modifier = Modifier.size(54.dp))
+        Spacer(Modifier.height(14.dp))
+        Text("Set up permissions first", color = Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+        Text("WakeUp Warrior needs these permissions before you can create alarms. Nothing is enabled silently.", color = Ink.copy(alpha = .75f), fontSize = 13.sp)
+        Spacer(Modifier.height(20.dp))
+        PermissionRow("Camera", "Dance and Lucky Wheel challenges", cameraGranted)
+        PermissionRow("Notifications", "Alarm notification and lock-screen alert", notificationsGranted)
+        PermissionRow("Exact alarms", "Trigger alarms at the selected time", exactAlarmGranted)
+        PermissionRow("Full-screen alarm access", "Show the task screen over the lock screen", fullScreenGranted)
+        Spacer(Modifier.height(18.dp))
+        if (!cameraGranted || !notificationsGranted) {
+            Button(onClick = onRequestRuntime, modifier = Modifier.fillMaxWidth()) { Text("Grant camera and notification permissions") }
+        }
+        if (!exactAlarmGranted) {
+            OutlinedButton(onClick = onExactAlarm, modifier = Modifier.fillMaxWidth()) { Text("Allow exact alarms in Settings") }
+        }
+        if (!fullScreenGranted) {
+            OutlinedButton(onClick = onFullScreen, modifier = Modifier.fillMaxWidth()) { Text("Allow full-screen alarm access in Settings") }
+        }
+        Text("Return here after each Settings screen. The app will re-check access automatically.", color = Ink.copy(alpha = .65f), fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun PermissionRow(title: String, description: String, granted: Boolean) {
+    Card(Modifier.fillMaxWidth().padding(vertical = 5.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(description, color = Ink.copy(alpha = .65f), fontSize = 11.sp)
+            }
+            Text(if (granted) "Allowed" else "Required", color = if (granted) Mint else Color(0xFFB34C59), fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
     }
 }
