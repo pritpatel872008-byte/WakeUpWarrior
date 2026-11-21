@@ -52,6 +52,7 @@ class AlarmRingActivity : ComponentActivity() {
 private fun AlarmChallengeFlow(onAllTasksComplete: () -> Unit) {
     var taskIndex by remember { mutableIntStateOf(0) }
     var quizAnswered by remember { mutableStateOf(false) }
+    var quizMessage by remember { mutableStateOf("Choose the correct answer.") }
     var danceStarted by remember { mutableStateOf(false) }
     var danceSeconds by remember { mutableIntStateOf(20) }
     var brushStarted by remember { mutableStateOf(false) }
@@ -107,17 +108,33 @@ private fun AlarmChallengeFlow(onAllTasksComplete: () -> Unit) {
                     Spacer(Modifier.height(18.dp))
                     listOf("54", "56", "64", "48").forEach { answer ->
                         OutlinedButton(
-                            onClick = { if (answer == "56") quizAnswered = true },
+                            onClick = {
+                                if (!quizAnswered) {
+                                    if (answer == "56") {
+                                        quizAnswered = true
+                                        quizMessage = "Correct! Moving to the next challenge..."
+                                    } else {
+                                        quizMessage = "Incorrect. Try again!"
+                                    }
+                                }
+                            },
                             enabled = !quizAnswered,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             shape = RoundedCornerShape(14.dp)
-                        ) { Text(if (quizAnswered && answer == "56") "56  ✓ Correct" else answer, color = Color.White) }
+                        ) {
+                            Text(if (quizAnswered && answer == "56") "56  ✓ Correct" else answer, color = Color.White)
+                        }
                     }
-                    if (quizAnswered) {
-                        Spacer(Modifier.height(14.dp))
-                        Button(onClick = { taskIndex++ }, modifier = Modifier.fillMaxWidth()) { Text("Continue") }
-                    } else {
-                        Text("Choose the correct answer.", color = Color.White.copy(alpha = .7f), fontSize = 12.sp)
+                    Text(
+                        quizMessage,
+                        color = if (quizAnswered) Color(0xFF9DE3CC) else Color.White.copy(alpha = .8f),
+                        fontSize = 13.sp
+                    )
+                    LaunchedEffect(quizAnswered) {
+                        if (quizAnswered) {
+                            delay(700)
+                            taskIndex = 1
+                        }
                     }
                 }
                 1 -> {
