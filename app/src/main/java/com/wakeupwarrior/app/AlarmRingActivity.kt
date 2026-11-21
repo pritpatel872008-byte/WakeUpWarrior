@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -211,7 +212,7 @@ private fun AlarmChallengeFlow(onAllTasksComplete: () -> Unit) {
                         color = Color(0xFF9DE3CC), fontSize = 23.sp, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(20.dp))
-                    Text("🎯", modifier = Modifier.graphicsLayer { rotationZ = wheelRotation.value }.padding(12.dp), fontSize = 88.sp)
+                    LuckyWheelGraphic(Modifier.size(210.dp).graphicsLayer { rotationZ = wheelRotation.value })
                     if (wheelResult == null && !wheelSpinning) {
                         Button(onClick = {
                             wheelSpinning = true
@@ -301,4 +302,35 @@ private fun CameraMotionPreview(enabled: Boolean, onMotionChanged: (Boolean) -> 
         },
         modifier = Modifier.fillMaxWidth().height(190.dp)
     )
+}
+
+
+@Composable
+private fun LuckyWheelGraphic(modifier: Modifier = Modifier) {
+    val slices = listOf(
+        Color(0xFFFFC857), Color(0xFFEF476F), Color(0xFF06D6A0),
+        Color(0xFF118AB2), Color(0xFF9B5DE5)
+    )
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val diameter = size.minDimension
+            val topLeft = androidx.compose.ui.geometry.Offset(
+                (size.width - diameter) / 2f,
+                (size.height - diameter) / 2f
+            )
+            slices.forEachIndexed { index, color ->
+                drawArc(
+                    color = color,
+                    startAngle = -90f + index * 72f,
+                    sweepAngle = 72f,
+                    useCenter = true,
+                    topLeft = topLeft,
+                    size = androidx.compose.ui.geometry.Size(diameter, diameter)
+                )
+            }
+            drawCircle(Color.White, radius = diameter * .12f)
+            drawCircle(Color(0xFF183E36), radius = diameter * .075f)
+        }
+        Text("▼", modifier = Modifier.align(Alignment.TopCenter), color = Color.White, fontSize = 22.sp)
+    }
 }
