@@ -186,9 +186,12 @@ class AlarmReceiver : BroadcastReceiver() {
             .setContentTitle("WakeUp Warrior")
             .setContentText("Your alarm is ringing. Time to get up!")
             .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
+            .setDefaults(androidx.core.app.NotificationCompat.DEFAULT_VIBRATE)
             .setFullScreenIntent(pending, true)
             .setOngoing(true)
+            .setAutoCancel(false)
             .build()
         manager.notify(id, notification)
     }
