@@ -77,11 +77,13 @@ fun WakeUpWarriorApp() {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    // Read the lifecycle counter so returning from Android Settings triggers a fresh permission check.
+    val permissionCheckKey = permissionRefresh
     val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
     val notificationsGranted = Build.VERSION.SDK_INT < 33 || androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
     val exactAlarmGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     val fullScreenGranted = Build.VERSION.SDK_INT < 34 || context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
-    val allPermissionsGranted = cameraGranted && notificationsGranted && exactAlarmGranted && fullScreenGranted
+    val allPermissionsGranted = permissionCheckKey >= 0 && cameraGranted && notificationsGranted && exactAlarmGranted && fullScreenGranted
 
     val runtimePermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         permissionRefresh++
@@ -105,6 +107,9 @@ fun WakeUpWarriorApp() {
         if (Build.VERSION.SDK_INT >= 34) {
             settingsLauncher.launch(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).setData(Uri.parse("package:" + context.packageName)))
         }
+    }
+    fun openAppPermissionSettings() {
+        settingsLauncher.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(Uri.parse("package:" + context.packageName)))
     }
 
     fun refresh() { alarms = AlarmStore.all(context) }
@@ -145,7 +150,8 @@ fun WakeUpWarriorApp() {
                     fullScreenGranted = fullScreenGranted,
                     onRequestRuntime = { requestRuntimePermissions() },
                     onExactAlarm = { openExactAlarmSettings() },
-                    onFullScreen = { openFullScreenSettings() }
+                    onFullScreen = { openFullScreenSettings() },
+                    onAppSettings = { openAppPermissionSettings() }
                 )
             }
         }
@@ -160,7 +166,8 @@ private fun PermissionSetupScreen(
     fullScreenGranted: Boolean,
     onRequestRuntime: () -> Unit,
     onExactAlarm: () -> Unit,
-    onFullScreen: () -> Unit
+    onFullScreen: () -> Unit,
+    onAppSettings: () -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().background(Canvas).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(24.dp),
@@ -178,7 +185,8 @@ private fun PermissionSetupScreen(
         PermissionRow("Full-screen alarm access", "Show the task screen over the lock screen", fullScreenGranted)
         Spacer(Modifier.height(18.dp))
         if (!cameraGranted || !notificationsGranted) {
-            Button(onClick = onRequestRuntime, modifier = Modifier.fillMaxWidth()) { Text("Grant camera and notification permissions") }
+            Button(onClick = onRequestRuntime, modifier = Modifier.fillMaxWidth()) { Text("Request camera / notification permission") }
+            OutlinedButton(onClick = onAppSettings, modifier = Modifier.fillMaxWidth()) { Text("Open app settings to turn permissions ON") }
         }
         if (!exactAlarmGranted) {
             OutlinedButton(onClick = onExactAlarm, modifier = Modifier.fillMaxWidth()) { Text("Allow exact alarms in Settings") }
@@ -186,7 +194,8 @@ private fun PermissionSetupScreen(
         if (!fullScreenGranted) {
             OutlinedButton(onClick = onFullScreen, modifier = Modifier.fillMaxWidth()) { Text("Allow full-screen alarm access in Settings") }
         }
-        Text("Return here after each Settings screen. The app will re-check access automatically.", color = Ink.copy(alpha = .65f), fontSize = 11.sp)
+        OutlinedButton(onClick = onAppSettings, modifier = Modifier.fillMaxWidth()) { Text("Open WakeUp Warrior app settings") }
+        Text("In App info, open Permissions and allow Camera. On Android 13+, allow Notifications too. Return to this app; access is checked again.", color = Ink.copy(alpha = .65f), fontSize = 11.sp)
     }
 }
 
