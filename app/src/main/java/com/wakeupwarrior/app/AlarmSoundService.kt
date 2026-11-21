@@ -28,12 +28,26 @@ class AlarmSoundService : Service() {
 
         currentAlarmId = intent?.getIntExtra("alarm_id", -1) ?: -1
         createChannel()
+        // Attach the full-screen alarm Activity to the foreground alarm notification too.
+        // This is the notification Samsung visibly keeps while the alarm service is running.
+        val ringIntent = Intent(this, AlarmRingActivity::class.java)
+            .putExtra("alarm_id", currentAlarmId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val ringPendingIntent = android.app.PendingIntent.getActivity(
+            this,
+            currentAlarmId,
+            ringIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_wake_up_warrior)
             .setContentTitle("WakeUp Warrior is ringing")
             .setContentText("Complete your wake-up tasks.")
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setFullScreenIntent(ringPendingIntent, true)
+            .setContentIntent(ringPendingIntent)
             .setOngoing(true)
             .build()
         startForeground(NOTIFICATION_ID, notification)
