@@ -1,6 +1,8 @@
 package com.wakeupwarrior.app
 
 import android.app.TimePickerDialog
+import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
@@ -63,6 +65,34 @@ fun WakeUpWarriorApp() {
     var alarms by remember { mutableStateOf(AlarmStore.all(context)) }
     var editing by remember { mutableStateOf<AlarmItem?>(null) }
     var showSetup by remember { mutableStateOf(false) }
+    var showPermissionSetup by remember { mutableStateOf(!context.getSharedPreferences("first_run", 0).getBoolean("permission_setup_seen", false)) }
+
+    val runtimePermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(AlarmManager::class.java)
+            if (!alarmManager.canScheduleExactAlarms()) {
+                runCatching { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:" + context.packageName))) }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= 34) {
+            val nm = context.getSystemService(NotificationManager::class.java)
+            if (!nm.canUseFullScreenIntent()) {
+                runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).setData(Uri.parse("package:" + context.packageName))) }
+            }
+        }
+        context.getSharedPreferences("first_run", 0).edit().putBoolean("permission_setup_seen", true).apply()
+        showPermissionSetup = false
+    }
+
+    fun requestRequiredPermissions() {
+        val permissions = buildList {
+            if (Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
+            add(android.Manifest.permission.CAMERA)
+        }
+        runtimePermissions.launch(permissions.toTypedArray())
+    }
 
     fun refresh() { alarms = AlarmStore.all(context) }
 
@@ -91,6 +121,22 @@ fun WakeUpWarriorApp() {
                         if (enabled) AlarmStore.all(context).firstOrNull { it.id == id }?.let { AlarmScheduler.schedule(context, it) }
                         else AlarmScheduler.cancel(context, id)
                         refresh()
+                    }
+                )
+            }
+            if (showPermissionSetup) {
+                AlertDialog(
+                    onDismissRequest = { },
+                    title = { Text("Set up WakeUp Warrior") },
+                    text = { Text("Allow notifications and camera access. We’ll also guide you to enable exact alarms and full-screen alarm display so the wake-up screen can appear on time. Camera is used for the Dance and Lucky Wheel challenges.") },
+                    confirmButton = {
+                        TextButton(onClick = { requestRequiredPermissions() }) { Text("Allow permissions") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            context.getSharedPreferences("first_run", 0).edit().putBoolean("permission_setup_seen", true).apply()
+                            showPermissionSetup = false
+                        }) { Text("Not now") }
                     }
                 )
             }
