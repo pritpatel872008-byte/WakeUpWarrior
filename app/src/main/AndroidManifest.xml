@@ -7,7 +7,8 @@
         android:allowBackup="false"
         android:label="WakeUp Warrior"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
-        android:icon="@drawable/ic_wake_up_warrior">
+        android:icon="@drawable/ic_wake_up_warrior"
+        android:roundIcon="@drawable/ic_wake_up_warrior">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
