@@ -159,6 +159,11 @@ class AlarmReceiver : BroadcastReceiver() {
             AlarmScheduler.schedule(context, item)
         }
 
+        val soundIntent = Intent(context, AlarmSoundService::class.java)
+            .putExtra("alarm_id", id)
+            .putExtra("ringtone", item.ringtone)
+        androidx.core.content.ContextCompat.startForegroundService(context, soundIntent)
+
         val fullScreen = Intent(context, AlarmRingActivity::class.java)
             .putExtra("alarm_id", id)
             .putExtra("ringtone", item.ringtone)
