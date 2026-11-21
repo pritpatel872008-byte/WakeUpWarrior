@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -139,7 +140,7 @@ private fun HomeScreen(
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("No alarms yet", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Add an alarm and choose only the challenges you want.", color = Ink.copy(alpha = .65f), fontSize = 12.sp)
+                    Text("Every alarm includes all four wake-up challenges.", color = Ink.copy(alpha = .65f), fontSize = 12.sp)
                 }
             }
         } else {
@@ -177,10 +178,6 @@ private fun AlarmSetupScreen(initial: AlarmItem?, onBack: () -> Unit, onSave: (A
     var hour by remember(initial?.id) { mutableIntStateOf(initial?.hour ?: 7) }
     var minute by remember(initial?.id) { mutableIntStateOf(initial?.minute ?: 0) }
     var repeatDays by remember(initial?.id) { mutableStateOf(initial?.repeatDays ?: emptySet()) }
-    var quiz by remember(initial?.id) { mutableStateOf(initial?.quiz ?: false) }
-    var dance by remember(initial?.id) { mutableStateOf(initial?.dance ?: false) }
-    var brush by remember(initial?.id) { mutableStateOf(initial?.brush ?: false) }
-    var lucky by remember(initial?.id) { mutableStateOf(initial?.lucky ?: false) }
     var ringtone by remember(initial?.id) { mutableStateOf(initial?.ringtone) }
 
     val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -225,12 +222,13 @@ private fun AlarmSetupScreen(initial: AlarmItem?, onBack: () -> Unit, onSave: (A
                     ) { Text(label, color = if (selected) Color.White else Ink, fontWeight = FontWeight.SemiBold) }
                 }
             }
-            Text("WAKE-UP CHALLENGES", color = Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Text("All challenges start OFF. Turn on only what you want.", color = Ink.copy(alpha = .65f), fontSize = 11.sp)
-            ChallengeToggle("Quick Quiz", "Answer questions to dismiss", Icons.Default.Quiz, quiz) { quiz = it }
-            ChallengeToggle("Dance Challenge", "Camera is used only when you start it", Icons.Default.DirectionsRun, dance) { dance = it }
-            ChallengeToggle("Brush Challenge", "2-minute brushing timer", Icons.Default.SelfImprovement, brush) { brush = it }
-            ChallengeToggle("Lucky Wheel", "Camera is used only when you start it", Icons.Default.Alarm, lucky) { lucky = it }
+            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE5F5EF))) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("ALL 4 CHALLENGES INCLUDED", color = Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("Quick Quiz • Dance • Brush • Lucky Wheel", color = Ink, fontSize = 12.sp)
+                    Text("No manual selection. Complete every task to dismiss the alarm.", color = Ink.copy(alpha = .7f), fontSize = 10.sp)
+                }
+            }
             OutlinedButton(
                 onClick = {
                     val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
@@ -254,7 +252,7 @@ private fun AlarmSetupScreen(initial: AlarmItem?, onBack: () -> Unit, onSave: (A
         Button(
             onClick = {
                 val id = initial?.id ?: (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
-                onSave(AlarmItem(id, hour, minute, repeatDays, ringtone, quiz, dance, brush, lucky, true))
+                onSave(AlarmItem(id, hour, minute, repeatDays, ringtone, true, true, true, true, true))
             },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp)
