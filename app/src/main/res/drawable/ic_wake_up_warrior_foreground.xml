@@ -1,0 +1,39 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#F6EFFF" android:pathData="M0,0h108v108h-108z"/>
+    <!-- sunrise glow -->
+    <path android:fillColor="#FFE58B" android:pathData="M56,7A38,38 0,0 1,94 45H18A38,38 0,0 1,56 7Z"/>
+    <path android:fillColor="#FFF7D7" android:pathData="M56,18A27,27 0,0 1,83 45H29A27,27 0,0 1,56 18Z"/>
+    <!-- alarm clock -->
+    <path android:fillColor="#7955C8" android:pathData="M72,38L78,28L87,35L82,42Z"/>
+    <path android:fillColor="#7955C8" android:pathData="M91,45L100,38L104,49L96,53Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M57,37A30,30 0,1 0,57 97A30,30 0,1 0,57 37Z"/>
+    <path android:fillColor="#A78AE8" android:pathData="M57,43A24,24 0,1 0,57 91A24,24 0,1 0,57 43Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M55,49H59V67H55Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M57,64L73,55L75,59L59,70Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M53,34H61V40H53Z"/>
+    <!-- mascot hair silhouette -->
+    <path android:fillColor="#38243D" android:pathData="M8,47C4,28 20,15 37,20C50,22 57,36 53,52L48,77L10,77Z"/>
+    <path android:fillColor="#38243D" android:pathData="M15,27C12,13 28,8 37,15C44,7 58,15 55,27C49,34 40,30 34,29C27,35 20,35 15,27Z"/>
+    <!-- face -->
+    <path android:fillColor="#FFD0B9" android:pathData="M17,39C17,29 25,24 34,25C44,26 49,34 47,46L43,61C40,70 29,72 22,64C18,59 16,48 17,39Z"/>
+    <!-- hair fringe -->
+    <path android:fillColor="#38243D" android:pathData="M14,39C15,24 27,20 39,24C46,27 49,34 47,41C41,37 37,33 34,29C29,37 22,40 14,39Z"/>
+    <!-- eyes, blush and smile -->
+    <path android:fillColor="#38243D" android:pathData="M24,46C27,43 30,44 31,47C29,51 26,51 24,46Z"/>
+    <path android:fillColor="#38243D" android:pathData="M39,46C42,43 45,44 46,47C44,51 41,51 39,46Z"/>
+    <path android:fillColor="#F28C9D" android:pathData="M20,54A4,3 0,1 0,28 54A4,3 0,1 0,20 54Z"/>
+    <path android:fillColor="#F28C9D" android:pathData="M40,54A4,3 0,1 0,48 54A4,3 0,1 0,40 54Z"/>
+    <path android:fillColor="#A84E69" android:pathData="M30,58C34,62 38,62 41,58C39,66 32,66 30,58Z"/>
+    <!-- headphones -->
+    <path android:fillColor="#B99AFF" android:pathData="M11,48A25,25 0,0 1,59 48H54A20,20 0,0 0,16 48Z"/>
+    <path android:fillColor="#8C65D8" android:pathData="M8,46H17V62H8Z"/>
+    <path android:fillColor="#8C65D8" android:pathData="M54,46H63V62H54Z"/>
+    <!-- hoodie -->
+    <path android:fillColor="#29233F" android:pathData="M17,68C24,63 39,64 47,70L52,103H5L9,81Z"/>
+    <path android:fillColor="#B99AFF" android:pathData="M26,70L34,82L42,70L38,67H30Z"/>
+    <!-- tiny crown -->
+    <path android:fillColor="#FFC94F" android:pathData="M23,14L27,20L33,12L38,20L44,14L42,25H25Z"/>
+    <path android:fillColor="#FFF0B5" android:pathData="M25,26H43V29H25Z"/>
+</vector>
