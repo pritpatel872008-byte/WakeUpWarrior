@@ -184,7 +184,7 @@ private fun AlarmSetupScreen(initial: AlarmItem?, onBack: () -> Unit, onSave: (A
     var ringtone by remember(initial?.id) { mutableStateOf(initial?.ringtone) }
 
     val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == ComponentActivity.RESULT_OK) {
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
             val picked = if (Build.VERSION.SDK_INT >= 33) {
                 result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             } else {
