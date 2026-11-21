@@ -1,21 +1,31 @@
 package com.wakeupwarrior.app
 
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material3.*
@@ -28,10 +38,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Calendar
 
 private val Mint = Color(0xFF62BFA6)
 private val Ink = Color(0xFF23443D)
 private val Canvas = Color(0xFFF3FAF7)
+private val dayLabels = listOf("S", "M", "T", "W", "T", "F", "S")
+private val dayValues = listOf(
+    Calendar.SUNDAY, Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY,
+    Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,23 +58,55 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun WakeUpWarriorApp() {
+    val context = LocalContext.current
+    var alarms by remember { mutableStateOf(AlarmStore.all(context)) }
+    var editing by remember { mutableStateOf<AlarmItem?>(null) }
+    var showSetup by remember { mutableStateOf(false) }
+
+    fun refresh() { alarms = AlarmStore.all(context) }
+
     MaterialTheme(colorScheme = lightColorScheme(primary = Mint, onPrimary = Color.White, background = Canvas, surface = Color.White)) {
-        var screen by remember { mutableStateOf("Home") }
         Surface(Modifier.fillMaxSize(), color = Canvas) {
-            when (screen) {
-                "Alarm setup" -> AlarmSetupScreen(onBack = { screen = "Home" })
-                else -> HomeScreen(onSetAlarm = { screen = "Alarm setup" })
+            if (showSetup) {
+                AlarmSetupScreen(
+                    initial = editing,
+                    onBack = { showSetup = false; editing = null },
+                    onSave = { item ->
+                        AlarmStore.save(context, item)
+                        AlarmScheduler.schedule(context, item)
+                        refresh()
+                        showSetup = false
+                        editing = null
+                    }
+                )
+            } else {
+                HomeScreen(
+                    alarms = alarms,
+                    onAdd = { editing = null; showSetup = true },
+                    onEdit = { editing = it; showSetup = true },
+                    onDelete = { AlarmScheduler.cancel(context, it); AlarmStore.delete(context, it); refresh() },
+                    onToggle = { id, enabled ->
+                        AlarmStore.setEnabled(context, id, enabled)
+                        if (enabled) AlarmStore.all(context).firstOrNull { it.id == id }?.let { AlarmScheduler.schedule(context, it) }
+                        else AlarmScheduler.cancel(context, id)
+                        refresh()
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeScreen(onSetAlarm: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+private fun HomeScreen(
+    alarms: List<AlarmItem>,
+    onAdd: () -> Unit,
+    onEdit: (AlarmItem) -> Unit,
+    onDelete: (Int) -> Unit,
+    onToggle: (Int, Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(46.dp).background(Mint, CircleShape), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.Bedtime, null, tint = Color.White, modifier = Modifier.size(25.dp))
@@ -68,97 +116,149 @@ private fun HomeScreen(onSetAlarm: () -> Unit) {
                 Text("Wake up. Show up. Win your day.", color = Ink.copy(alpha = .65f), fontSize = 12.sp)
             }
         }
-        Card(shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("NEXT ALARM", color = Mint, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, fontSize = 11.sp)
-                Text("--:--", fontSize = 46.sp, fontWeight = FontWeight.SemiBold, color = Ink)
-                Text("No alarm scheduled yet", color = Ink.copy(alpha = .65f), fontSize = 13.sp)
-                Button(onClick = onSetAlarm, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) {
-                    Icon(Icons.Default.Alarm, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Set Alarm", fontSize = 16.sp)
+        Spacer(Modifier.height(18.dp))
+        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
+            Icon(Icons.Default.Alarm, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Add alarm", fontSize = 16.sp)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val manager = context.getSystemService(android.app.AlarmManager::class.java)
+            if (!manager.canScheduleExactAlarms()) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Allow precise alarm timing") }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("YOUR ALARMS", fontWeight = FontWeight.Bold, color = Ink, letterSpacing = 1.sp, fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+        if (alarms.isEmpty()) {
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No alarms yet", color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Add an alarm and choose only the challenges you want.", color = Ink.copy(alpha = .65f), fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
+                items(alarms, key = { it.id }) { alarm ->
+                    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f).clickable { onEdit(alarm) }) {
+                                    Text(formatTime(alarm.hour, alarm.minute), fontSize = 30.sp, color = Ink, fontWeight = FontWeight.SemiBold)
+                                    Text(repeatLabel(alarm.repeatDays), fontSize = 11.sp, color = Ink.copy(alpha = .65f))
+                                }
+                                Switch(checked = alarm.enabled, onCheckedChange = { onToggle(alarm.id, it) })
+                                IconButton(onClick = { onEdit(alarm) }) { Icon(Icons.Default.Edit, "Edit alarm", tint = Ink) }
+                                IconButton(onClick = { onDelete(alarm.id) }) { Icon(Icons.Default.Delete, "Delete alarm", tint = Color(0xFFB34C59)) }
+                            }
+                            val selected = listOfNotNull(
+                                if (alarm.quiz) "Quiz" else null,
+                                if (alarm.dance) "Dance" else null,
+                                if (alarm.brush) "Brush" else null,
+                                if (alarm.lucky) "Lucky Wheel" else null
+                            )
+                            Text(if (selected.isEmpty()) "No challenges selected" else selected.joinToString(" • "), color = Ink.copy(alpha = .7f), fontSize = 11.sp)
+                        }
+                    }
                 }
             }
         }
-        Text("YOUR CHALLENGES", fontWeight = FontWeight.Bold, color = Ink, letterSpacing = 1.sp, fontSize = 12.sp)
-        ChallengeTile("Quick Quiz", "Offline questions", Icons.Default.Quiz)
-        ChallengeTile("Dance Challenge", "Movement challenge", Icons.Default.DirectionsRun)
-        ChallengeTile("Brush Challenge", "2-minute timer", Icons.Default.SelfImprovement)
-        ChallengeTile("Lucky Wheel", "Household object challenge", Icons.Default.Alarm)
-        Text("Alarm and challenge engines are still under development.", color = Ink.copy(alpha = .58f), fontSize = 11.sp)
     }
 }
 
 @Composable
-private fun AlarmSetupScreen(onBack: () -> Unit) {
+private fun AlarmSetupScreen(initial: AlarmItem?, onBack: () -> Unit, onSave: (AlarmItem) -> Unit) {
     val context = LocalContext.current
-    var hour by remember { mutableIntStateOf(7) }
-    var minute by remember { mutableIntStateOf(0) }
-    var repeatDays by remember { mutableStateOf(setOf("M", "T", "W", "T", "F")) }
-    var quiz by remember { mutableStateOf(true) }
-    var dance by remember { mutableStateOf(false) }
-    var brush by remember { mutableStateOf(false) }
-    var lucky by remember { mutableStateOf(false) }
-    var showInfo by remember { mutableStateOf(false) }
+    var hour by remember(initial?.id) { mutableIntStateOf(initial?.hour ?: 7) }
+    var minute by remember(initial?.id) { mutableIntStateOf(initial?.minute ?: 0) }
+    var repeatDays by remember(initial?.id) { mutableStateOf(initial?.repeatDays ?: emptySet()) }
+    var quiz by remember(initial?.id) { mutableStateOf(initial?.quiz ?: false) }
+    var dance by remember(initial?.id) { mutableStateOf(initial?.dance ?: false) }
+    var brush by remember(initial?.id) { mutableStateOf(initial?.brush ?: false) }
+    var lucky by remember(initial?.id) { mutableStateOf(initial?.lucky ?: false) }
+    var ringtone by remember(initial?.id) { mutableStateOf(initial?.ringtone) }
 
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == ComponentActivity.RESULT_OK) {
+            val picked = if (Build.VERSION.SDK_INT >= 33) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            ringtone = picked?.toString()
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Ink)
-            }
-            Text("Set your alarm", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+            IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) { Icon(Icons.Default.ArrowBack, "Back", tint = Ink) }
+            Text(if (initial == null) "Set your alarm" else "Edit alarm", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
         }
-        Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("WAKE-UP TIME", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text(
-                    String.format("%02d:%02d", if (hour % 12 == 0) 12 else hour % 12, minute) + if (hour < 12) " AM" else " PM",
-                    fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Ink,
-                    modifier = Modifier.clickable {
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("WAKE-UP TIME", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text(formatTime(hour, minute), fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    OutlinedButton(onClick = {
                         TimePickerDialog(context, { _, h, m -> hour = h; minute = m }, hour, minute, false).show()
+                    }) { Text("Choose time") }
+                }
+            }
+            Text("REPEAT  •  leave all days off for a one-time alarm", color = Ink, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                dayLabels.forEachIndexed { index, label ->
+                    val day = dayValues[index]
+                    val selected = day in repeatDays
+                    Box(
+                        Modifier.size(38.dp).background(if (selected) Mint else Color.White, CircleShape)
+                            .clickable { repeatDays = if (selected) repeatDays - day else repeatDays + day },
+                        contentAlignment = Alignment.Center
+                    ) { Text(label, color = if (selected) Color.White else Ink, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+            Text("WAKE-UP CHALLENGES", color = Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("All challenges start OFF. Turn on only what you want.", color = Ink.copy(alpha = .65f), fontSize = 11.sp)
+            ChallengeToggle("Quick Quiz", "Answer questions to dismiss", Icons.Default.Quiz, quiz) { quiz = it }
+            ChallengeToggle("Dance Challenge", "Camera is used only when you start it", Icons.Default.DirectionsRun, dance) { dance = it }
+            ChallengeToggle("Brush Challenge", "2-minute brushing timer", Icons.Default.SelfImprovement, brush) { brush = it }
+            ChallengeToggle("Lucky Wheel", "Camera is used only when you start it", Icons.Default.Alarm, lucky) { lucky = it }
+            OutlinedButton(
+                onClick = {
+                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Choose alarm sound")
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                        ringtone?.let { putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it)) }
                     }
-                )
-                OutlinedButton(
-                    onClick = { TimePickerDialog(context, { _, h, m -> hour = h; minute = m }, hour, minute, false).show() },
-                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp)
-                ) { Text("Choose time") }
+                    ringtonePicker.launch(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.MusicNote, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (ringtone == null) "Choose alarm ringtone" else "Change alarm ringtone")
             }
+            Text(if (ringtone == null) "Default alarm sound will be used." else "Custom alarm sound selected.", color = Ink.copy(alpha = .6f), fontSize = 10.sp)
         }
-        Text("REPEAT", color = Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            listOf("S", "M", "T", "W", "T", "F", "S").forEachIndexed { index, day ->
-                val key = "$day$index"
-                val selected = repeatDays.contains(key)
-                Box(
-                    Modifier.size(38.dp).background(if (selected) Mint else Color.White, CircleShape)
-                        .clickable { repeatDays = if (selected) repeatDays - key else repeatDays + key },
-                    contentAlignment = Alignment.Center
-                ) { Text(day, color = if (selected) Color.White else Ink, fontWeight = FontWeight.SemiBold) }
-            }
-        }
-        Text("WAKE-UP CHALLENGES", color = Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        ChallengeToggle("Quick Quiz", "Answer questions to dismiss", Icons.Default.Quiz, quiz) { quiz = it }
-        ChallengeToggle("Dance Challenge", "Camera is used only when you start it", Icons.Default.DirectionsRun, dance) { dance = it }
-        ChallengeToggle("Brush Challenge", "2-minute brushing timer", Icons.Default.SelfImprovement, brush) { brush = it }
-        ChallengeToggle("Lucky Wheel", "Camera is used only when you start it", Icons.Default.Alarm, lucky) { lucky = it }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
         Button(
-            onClick = { showInfo = true },
+            onClick = {
+                val id = initial?.id ?: (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                onSave(AlarmItem(id, hour, minute, repeatDays, ringtone, quiz, dance, brush, lucky, true))
+            },
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(16.dp)
-        ) { Text("Save alarm setup", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
-        Text("Alarm scheduling and ringtone saving are being implemented next.", color = Ink.copy(alpha = .58f), fontSize = 10.sp)
-    }
-    if (showInfo) {
-        AlertDialog(
-            onDismissRequest = { showInfo = false },
-            title = { Text("Setup preview") },
-            text = { Text("Your time and challenge selections are currently a screen preview. The alarm scheduler and saving will be connected in the next implementation step.") },
-            confirmButton = { TextButton(onClick = { showInfo = false }) { Text("OK") } }
-        )
+        ) { Text("Save alarm", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -179,18 +279,13 @@ private fun ChallengeToggle(title: String, subtitle: String, icon: ImageVector, 
     }
 }
 
-@Composable
-private fun ChallengeTile(title: String, subtitle: String, icon: ImageVector) {
-    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).background(Color(0xFFE5F5EF), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = Mint)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(title, fontWeight = FontWeight.SemiBold, color = Ink)
-                Text(subtitle, fontSize = 11.sp, color = Ink.copy(alpha = .62f))
-            }
-        }
-    }
+private fun formatTime(hour: Int, minute: Int): String {
+    val h = if (hour % 12 == 0) 12 else hour % 12
+    return String.format("%02d:%02d %s", h, minute, if (hour < 12) "AM" else "PM")
+}
+
+private fun repeatLabel(days: Set<Int>): String {
+    if (days.isEmpty()) return "One time"
+    val names = mapOf(1 to "Sun", 2 to "Mon", 3 to "Tue", 4 to "Wed", 5 to "Thu", 6 to "Fri", 7 to "Sat")
+    return days.sorted().joinToString(" • ") { names[it] ?: "" }
 }
