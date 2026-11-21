@@ -1,9 +1,5 @@
 package com.wakeupwarrior.app
 
-import android.app.Activity
-import android.media.Ringtone
-import android.media.RingtoneManager
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 class AlarmRingActivity : ComponentActivity() {
-    private var ringtone: Ringtone? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,10 +25,6 @@ class AlarmRingActivity : ComponentActivity() {
                 android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
                 android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
-        val uriText = intent.getStringExtra("ringtone")
-        val uri = uriText?.let { runCatching { Uri.parse(it) }.getOrNull() }
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        ringtone = RingtoneManager.getRingtone(this, uri)?.also { it.play() }
         setContent {
             MaterialTheme {
                 Column(
@@ -56,14 +47,13 @@ class AlarmRingActivity : ComponentActivity() {
     }
 
     private fun stopAlarm() {
-        ringtone?.stop()
+        AlarmSoundService.stop(this)
         val id = intent.getIntExtra("alarm_id", -1)
         getSystemService(android.app.NotificationManager::class.java).cancel(id)
         finish()
     }
 
     override fun onDestroy() {
-        ringtone?.stop()
         super.onDestroy()
     }
 }
